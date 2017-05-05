@@ -13,6 +13,8 @@
   crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.4.3/proj4.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.1/proj4leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.0.5/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.0.5/MarkerCluster.Default.css" />
 
     <style>
       body {
@@ -37,35 +39,98 @@
 
       map.setView(sthlmLatLng, 8);
 
-      var owsrootUrl = 'https://lacunaserver.se/geoserver/ows?';
+      var owsrootUrl = 'https://lacunaserver.se/geoserver/ows';
       var mapproxyUrl = 'https://lacunaserver.se/mapproxy/service?';
 
       var baseMaps = {
         blackwhite: L.tileLayer.provider('OpenStreetMap.BlackAndWhite').addTo(map),
-        hojdkurvor: L.tileLayer.wms(mapproxyUrl,
-          {
-            layers: 'combined_sweden',
-            transparent: true,
-            format: 'image/png',
-          }).addTo(map)
+        // hojdkurvor: L.tileLayer.wms(mapproxyUrl,
+        //   {
+        //     layers: 'combined_sweden',
+        //     transparent: true,
+        //     format: 'image/png',
+        //   }).addTo(map),
       }
 
       var overlayMaps = {
-        badplatser: L.tileLayer.wms(owsrootUrl,
+        // badplatser: L.tileLayer.wms(owsrootUrl,
+        //   {
+        //     layers: 'adventuremap:badplatser',
+        //     transparent: true,
+        //     format: 'image/png',
+        //   }).addTo(map),
+        // vindskydd: L.tileLayer.wms(owsrootUrl,
+        //   {
+        //     layers: 'adventuremap:vindskydd',
+        //     transparent: true,
+        //     format: 'image/png',
+        //   }).addTo(map),
+        badplatserWfs: L.markerClusterGroup(
           {
-            layers: 'adventuremap:badplatser',
-            transparent: true,
-            format: 'image/png',
-          }).addTo(map),
-        vindskydd: L.tileLayer.wms(owsrootUrl,
-          {
-            layers: 'adventuremap:vindskydd',
-            transparent: true,
-            format: 'image/png',
+            // showCoverageOnHover: false,
+            removeOutsideVisibleBounds: true,
+            maxClusterRadius: 200,
+            // animate: true,
+
           }).addTo(map),
       };
 
       L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+      map.on('zoomend', function () {
+          if (map.getZoom() > 9 && map.hasLayer(overlayMaps.badplatserWfs)) {
+              map.removeLayer(overlayMaps.badplatserWfs);
+          }
+          if (map.getZoom() < 9 && map.hasLayer(overlayMaps.badplatserWfs) == false)
+          {
+              map.addLayer(overlayMaps.badplatserWfs);
+          }   
+      });
+
+      // var markers = L.markerClusterGroup();
+      // map.addLayer(markers);
+
+      var defaultParameters = {
+          service : 'WFS',
+          version : '2.0',
+          request : 'GetFeature',
+          typeName : 'adventuremap:badplatser',
+          outputFormat : 'text/javascript',
+          format_options : 'callback:getJson',
+          SrsName : 'EPSG:4326'
+      };
+
+      var customParameters = {
+        bbox: map.getBounds().toBBoxString(),
+      }
+
+      var parameters = L.Util.extend(defaultParameters);
+      var URL = owsrootUrl + L.Util.getParamString(parameters);
+
+      var WFSLayer = null;
+      var ajax = $.ajax({
+          url : URL,
+          dataType : 'jsonp',
+          jsonpCallback : 'getJson',
+          success : function (response) {
+              console.log(response);
+              overlayMaps.badplatserWfs.addLayer(L.geoJson(response, {
+              // WFSLayer = L.geoJson(response, {
+                  style: function (feature) {
+                      return {
+                          stroke: false,
+                          fillColor: 'FFFFFF',
+                          fillOpacity: 0
+                      };
+                  },
+                  onEachFeature: function (feature, layer) {
+                      popupOptions = {maxWidth: 200};
+                      layer.bindPopup("Popup text, access attributes with feature.properties.ATTRIBUTE_NAME"
+                          ,popupOptions);
+                  }
+              }));//.addTo(map);
+          }
+      });
 
     </script>
 
