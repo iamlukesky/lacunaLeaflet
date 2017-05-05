@@ -32,6 +32,8 @@
     <div id="map"></div>
 
     <script>
+      var owsrootUrl = 'https://lacunaserver.se/geoserver/ows';
+      var mapproxyUrl = 'https://lacunaserver.se/mapproxy/service?';
 
       var sthlmLatLng = [59.311162, 18.074806];
 
@@ -39,98 +41,83 @@
 
       map.setView(sthlmLatLng, 8);
 
-      var owsrootUrl = 'https://lacunaserver.se/geoserver/ows';
-      var mapproxyUrl = 'https://lacunaserver.se/mapproxy/service?';
-
-      var baseMaps = {
-        blackwhite: L.tileLayer.provider('OpenStreetMap.BlackAndWhite').addTo(map),
-        // hojdkurvor: L.tileLayer.wms(mapproxyUrl,
-        //   {
-        //     layers: 'combined_sweden',
-        //     transparent: true,
-        //     format: 'image/png',
-        //   }).addTo(map),
-      }
-
-      var overlayMaps = {
-        // badplatser: L.tileLayer.wms(owsrootUrl,
-        //   {
-        //     layers: 'adventuremap:badplatser',
-        //     transparent: true,
-        //     format: 'image/png',
-        //   }).addTo(map),
-        // vindskydd: L.tileLayer.wms(owsrootUrl,
-        //   {
-        //     layers: 'adventuremap:vindskydd',
-        //     transparent: true,
-        //     format: 'image/png',
-        //   }).addTo(map),
-        badplatserWfs: L.markerClusterGroup(
-          {
-            // showCoverageOnHover: false,
-            removeOutsideVisibleBounds: true,
-            maxClusterRadius: 200,
-            animate: true,
-
-          }).addTo(map),
+      var clusterOptions = {
+        showCoverageOnHover: false,
+        removeOutsideVisibleBounds: true,
+        maxClusterRadius: 100, // could preferably be set by screen dpi or current zoomlevel
+        animate: true,
       };
 
+      // add layers and layer control
+      var baseMaps = {
+        blackwhite: L.tileLayer.provider('OpenStreetMap.BlackAndWhite'),
+        combined_sweden: L.tileLayer.wms(mapproxyUrl,
+          {
+            layers: 'combined_sweden',
+            transparent: true,
+            format: 'image/png',
+          }).addTo(map),
+      }
+      var overlayMaps = {
+        badplatserWfs: L.markerClusterGroup(clusterOptions).addTo(map),
+        vindskyddWfs: L.markerClusterGroup(clusterOptions).addTo(map),
+      };
       L.control.layers(baseMaps, overlayMaps).addTo(map);
 
-      // map.on('zoomend', function () {
-      //     if (map.getZoom() < 9 && map.hasLayer(overlayMaps.badplatserWfs)) {
-      //         map.removeLayer(overlayMaps.badplatserWfs);
-      //     }
-      //     if (map.getZoom() > 9 && map.hasLayer(overlayMaps.badplatserWfs) == false)
-      //     {
-      //         map.addLayer(overlayMaps.badplatserWfs);
-      //     }   
-      // });
-
-      // var markers = L.markerClusterGroup();
-      // map.addLayer(markers);
-
-      var defaultParameters = {
-          service : 'WFS',
-          version : '2.0',
-          request : 'GetFeature',
-          typeName : 'adventuremap:badplatser',
-          outputFormat : 'text/javascript',
-          format_options : 'callback:getJson',
-          SrsName : 'EPSG:4326'
+      // define marker options
+      var badplatsIcon = L.icon({
+        iconUrl: 'badplats_64.png',
+        iconSize:     [32, 32],
+        iconAnchor:   [16, 16],
+      });
+      var vindskyddIcon = L.icon({
+        iconUrl: 'vindskydd_64.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      })
+      var badplatsMarker = {
+        icon: badplatsIcon,
+      };
+      var vindskyddMarker = {
+        icon: vindskyddIcon,
       };
 
-      var customParameters = {
-        bbox: map.getBounds().toBBoxString(),
-      }
+      loadWfsPoints('adventuremap:badplatser', overlayMaps.badplatserWfs, badplatsMarker);
+      loadWfsPoints('adventuremap:vindskydd', overlayMaps.vindskyddWfs, vindskyddMarker);
 
-      var parameters = L.Util.extend(defaultParameters);
-      var URL = owsrootUrl + L.Util.getParamString(parameters);
+      // Load geoJson from WFS with jQuery, add the points to the provided cluster
+      function loadWfsPoints(layerName, clusterLayer, markerOptions){
+        var defaultParameters = {
+            service : 'WFS',
+            version : '2.0',
+            request : 'GetFeature',
+            typeName : layerName,
+            outputFormat : 'text/javascript',
+            format_options : 'callback:getJson',
+            SrsName : 'EPSG:4326'
+        };
+        var customParameters = {
+          bbox: map.getBounds().toBBoxString(), // for some reason this doesn't seem to do anything... would be preferable to only load items in view
+        }
+        var parameters = L.Util.extend(defaultParameters);
+        var URL = owsrootUrl + L.Util.getParamString(parameters);
 
-      var WFSLayer = null;
-      var ajax = $.ajax({
-          url : URL,
-          dataType : 'jsonp',
-          jsonpCallback : 'getJson',
-          success : function (response) {
+        var WFSLayer = null;
+        var ajax = $.ajax({
+            url : URL,
+            dataType : 'jsonp',
+            jsonpCallback : 'getJson',
+            success : function (response) {
               console.log(response);
-              overlayMaps.badplatserWfs.addLayer(L.geoJson(response, {
-              // WFSLayer = L.geoJson(response, {
-                  style: function (feature) {
-                      return {
-                          stroke: false,
-                          fillColor: 'FFFFFF',
-                          fillOpacity: 0
-                      };
-                  },
-                  onEachFeature: function (feature, layer) {
-                      popupOptions = {maxWidth: 200};
-                      layer.bindPopup("Popup text, access attributes with feature.properties.ATTRIBUTE_NAME"
-                          ,popupOptions);
-                  }
-              }));//.addTo(map);
-          }
-      });
+              var point = L.geoJson(response, {
+                pointToLayer: function(feature, latlng){
+                  return L.marker(latlng, markerOptions);
+                }
+              });
+              clusterLayer.addLayer(point);
+            }
+        });
+      };
 
     </script>
 
