@@ -70,22 +70,22 @@
             // showCoverageOnHover: false,
             removeOutsideVisibleBounds: true,
             maxClusterRadius: 200,
-            // animate: true,
+            animate: true,
 
           }).addTo(map),
       };
 
       L.control.layers(baseMaps, overlayMaps).addTo(map);
 
-      map.on('zoomend', function () {
-          if (map.getZoom() > 9 && map.hasLayer(overlayMaps.badplatserWfs)) {
-              map.removeLayer(overlayMaps.badplatserWfs);
-          }
-          if (map.getZoom() < 9 && map.hasLayer(overlayMaps.badplatserWfs) == false)
-          {
-              map.addLayer(overlayMaps.badplatserWfs);
-          }   
-      });
+      // map.on('zoomend', function () {
+      //     if (map.getZoom() < 9 && map.hasLayer(overlayMaps.badplatserWfs)) {
+      //         map.removeLayer(overlayMaps.badplatserWfs);
+      //     }
+      //     if (map.getZoom() > 9 && map.hasLayer(overlayMaps.badplatserWfs) == false)
+      //     {
+      //         map.addLayer(overlayMaps.badplatserWfs);
+      //     }   
+      // });
 
       // var markers = L.markerClusterGroup();
       // map.addLayer(markers);
